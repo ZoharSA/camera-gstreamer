@@ -68,6 +68,8 @@ class CameraGstreamer {
     void optionTrigger( const char *key, const char *value );
     void getPipelineValue( const char *key, const char *value );
     bool parseBoolValue( const char *key, const char *value );
+    void allocateFrameBufferPool(unsigned bufferSize);
+    void releaseBufferPool();
 
     static const std::unordered_map< std::string, void (CameraGstreamer::*)( const char *key, const char *value ) > optionHandlers;
 

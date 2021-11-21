@@ -45,12 +45,8 @@ CameraGstreamer::CameraGstreamer( CameraId id,
     assert( description.width > 0 );
     assert( description.height > 0 );
 
-    unsigned bufferSize = getBufferSize( description.format, description.width*description.height );
-    for( unsigned i=0; i < RING; i++ ){
-        if(_frameBufferPool[i].buffer == nullptr){
-                _frameBufferPool[i].buffer = new uint8_t[bufferSize];
-        }
-    }
+    const unsigned bufferSize = getBufferSize( description.format, description.width*description.height );
+    allocateFrameBufferPool( bufferSize );
     _gstreamPipeline = description.id;
     for( unsigned i=0; i<description.numCustomParameters; ++i ) {
         const char * const key = description.customParameters[i].key;
@@ -65,10 +61,27 @@ CameraGstreamer::CameraGstreamer( CameraId id,
         (this->*(handler->second))( key, value );
     }
     init();
-};
+}
+
+void CameraGstreamer::allocateFrameBufferPool(unsigned bufferSize) {
+    for (unsigned i = 0; i < RING; ++i) {
+        assert(_frameBufferPool[i].buffer == nullptr);
+        _frameBufferPool[i].buffer = new uint8_t[bufferSize];
+    }
+}
+
+void CameraGstreamer::releaseBufferPool() {
+    for (unsigned i = 0; i < RING; ++i) {
+        if (_frameBufferPool[i].buffer != nullptr) {
+            delete[] _frameBufferPool[i].buffer;
+            _frameBufferPool[i].buffer = nullptr;
+        }
+    }
+}
 
 CameraGstreamer::~CameraGstreamer() {
     stop();
+    releaseBufferPool();
 };
 
 void CameraGstreamer::init() {
