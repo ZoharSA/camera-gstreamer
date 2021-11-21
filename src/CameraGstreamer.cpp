@@ -39,6 +39,7 @@ CameraGstreamer::CameraGstreamer( CameraId id,
     _readyToUseBuffer ( -1 ),
     _framesPerSecond( framesPerSecond ),
     _noSignal( false ),
+    _gstreamPipeline( description.id ),
     _isRunning( false )
 {
     assert( _framesPerSecond > 0 );
@@ -47,7 +48,6 @@ CameraGstreamer::CameraGstreamer( CameraId id,
 
     const unsigned bufferSize = getBufferSize( description.format, description.width*description.height );
     allocateFrameBufferPool( bufferSize );
-    _gstreamPipeline = description.id;
     for( unsigned i=0; i<description.numCustomParameters; ++i ) {
         const char * const key = description.customParameters[i].key;
         const char * const value = description.customParameters[i].value;

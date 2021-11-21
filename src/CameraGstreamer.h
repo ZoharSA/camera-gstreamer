@@ -86,8 +86,8 @@ private:
     time_point              _lastCapturedTimestamp;
     pid_t                   _threadAlignToFpsId     = -1;
     std::thread             _alignToFpsThread;
-    std::string             _gstreamPipeline;
-    std::atomic<bool>       _restartPipeline        = false;
+    const std::string       _gstreamPipeline;
+    std::atomic<bool>       _restartPipeline        { false };
     bool                    _loop                   = false;
     std::atomic<bool>       _isRunning;
     bool                    _trigger                = false;
