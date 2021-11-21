@@ -222,21 +222,24 @@ GstFlowReturn CameraGstreamer::onNewSample( GstElement *element, gpointer user_d
 void CameraGstreamer::alignToFps()
 {
     _threadAlignToFpsId = syscall( SYS_gettid );
-    unsigned long long timeBetweenFramesInUS = 1000000 / _framesPerSecond;
-    unsigned long long noSignalTimeOutInUs = 300000;
+    const microseconds timeBetweenFramesInUS = 1'000'000 / _framesPerSecond;
+    constexpr microseconds NO_SIGNAL_TIMEOUT_IN_US = 300'000;
+    _lastCapturedTimestamp = std::chrono::steady_clock::now();
     while ( _isRunning ) {
-        unsigned long long curr_duration = DurationUS(std::chrono::steady_clock::now() -  _lastCapturedTimestamp).count();
+        const microseconds curr_duration = DurationUS(std::chrono::steady_clock::now() -  _lastCapturedTimestamp).count();
         if( _restartPipeline ) {
             stopPipeline();
             playGetVideoPackets();
             _restartPipeline = false;
             continue;
         }
-        if( !_noSignal && curr_duration >= noSignalTimeOutInUs ){
+        if( !_noSignal && curr_duration >= NO_SIGNAL_TIMEOUT_IN_US ){
+            std::cout << "[camera "<<_cameraId<<"] No frame captured in last "<<curr_duration<<"us (no-signal timeout is "<<NO_SIGNAL_TIMEOUT_IN_US<<"us)." << std::endl;
             _manager->badCamera( _cameraId );
             _noSignal = true;
         }
-        else if ( _noSignal && curr_duration < noSignalTimeOutInUs ){
+        else if ( _noSignal && curr_duration < NO_SIGNAL_TIMEOUT_IN_US ){
+            std::cout << "[camera "<<_cameraId<<"] Frame successfully captured - camera recovered from no-signal." << std::endl;
             _manager->goodCamera( _cameraId );
             _noSignal = false;
         }
@@ -253,7 +256,7 @@ void CameraGstreamer::alignToFps()
         }
         usleep(timeBetweenFramesInUS);
     }
-
+    std::cout << "[camera "<<_cameraId<<"] alignToFps thread finished running." << std::endl;
 }
 
 unsigned CameraGstreamer::getBufferSize( DUFrameFormat format, unsigned size )

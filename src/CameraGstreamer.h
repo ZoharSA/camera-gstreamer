@@ -22,6 +22,7 @@ constexpr const unsigned RING = 3;
 
 typedef std::chrono::duration<double, std::micro> DurationUS;
 using time_point = std::chrono::steady_clock::time_point;
+using microseconds = unsigned long long;
 
 class CamerasManager;
 
