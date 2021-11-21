@@ -21,11 +21,12 @@
 constexpr const unsigned RING = 3;
 
 typedef std::chrono::duration<double, std::micro> DurationUS;
+using time_point = std::chrono::steady_clock::time_point;
 
 class CamerasManager;
 
 class CameraGstreamer {
-   public:
+public:
     CameraGstreamer(
           CameraId id,
           const DUCameraDescriptor description,
@@ -36,17 +37,16 @@ class CameraGstreamer {
     void start();
     void stop();
     void playGetVideoPackets();
-    bool getIsTrigger(){ return _trigger; }
+    bool getIsTrigger() const { return _trigger; }
     void setTrigger(bool trigger){ _trigger = trigger; }
 
-   private:
+private:
 
-    struct frameBuffer{
-          uint8_t *buffer;
-          int bufferSize;
-          std::chrono::steady_clock::time_point timestamp;
-          uint32_t frameIndex;
-          frameBuffer():buffer(nullptr){}
+    struct FrameBuffer{
+          uint8_t *buffer     = nullptr;
+          int bufferSize      = 0;
+          time_point timestamp;
+          uint32_t frameIndex = 0;
     };
 
     GMainLoop *loop = NULL;
@@ -62,32 +62,30 @@ class CameraGstreamer {
     static GstFlowReturn onNewSample( GstElement *element, gpointer user_data );
     void onVideoFrame( GstVideoFrame *frame );
     void alignToFps();
-    unsigned getBufferSize( DUFrameFormat format, unsigned size );
+    static unsigned getBufferSize( DUFrameFormat format, unsigned size );
     void setRestartPipeline() { _restartPipeline = true; }
     void optionLoop( const char *key, const char *value );
     void optionTrigger( const char *key, const char *value );
-    void getPipelineValue( const char *key, const char *value );
-    bool parseBoolValue( const char *key, const char *value );
+    static bool parseBoolValue( const char *key, const char *value );
     void allocateFrameBufferPool(unsigned bufferSize);
     void releaseBufferPool();
 
     static const std::unordered_map< std::string, void (CameraGstreamer::*)( const char *key, const char *value ) > optionHandlers;
 
 
-    unsigned int _cameraId;
-    CamerasManager * _manager;
-    std::atomic<int> _readyToUseBuffer;
-    unsigned int _framesPerSecond;
-    void* _opaq = nullptr;
-    bool _noSignal = false;
-    frameBuffer _frameBufferPool[RING];
-    std::chrono::steady_clock::time_point _lastCapturedTimestamp;
-    pid_t _threadAlignToFpsId = -1;
-    std::thread _alignToFpsThread;
-    std::string _gstreamPipeline;
-    std::atomic<bool> _restartPipeline;
-    bool _loop = false;
-    std::atomic<bool> _isRunning;
-    bool _trigger = false;
-    uint32_t _frameIndex = 0;
+    const unsigned int      _cameraId;
+    CamerasManager * const   _manager;
+    std::atomic<int>        _readyToUseBuffer;
+    const unsigned int      _framesPerSecond;
+    bool                    _noSignal               = false;
+    FrameBuffer             _frameBufferPool[RING];
+    time_point              _lastCapturedTimestamp;
+    pid_t                   _threadAlignToFpsId     = -1;
+    std::thread             _alignToFpsThread;
+    std::string             _gstreamPipeline;
+    std::atomic<bool>       _restartPipeline;
+    bool                    _loop                   = false;
+    std::atomic<bool>       _isRunning;
+    bool                    _trigger                = false;
+    uint32_t                _frameIndex             = 0;
 };
