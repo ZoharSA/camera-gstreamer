@@ -73,6 +73,7 @@ private:
     static bool parseBoolValue( const char *key, const char *value );
     void allocateFrameBufferPool(unsigned bufferSize);
     void releaseBufferPool();
+    void handleCustomParameters( const DUCustomCameraParameter * customParameters, uint8_t numCustomParameters);
 
     static const std::unordered_map< std::string, void (CameraGstreamer::*)( const char *key, const char *value ) > optionHandlers;
 

@@ -48,19 +48,29 @@ CameraGstreamer::CameraGstreamer( CameraId id,
 
     const unsigned bufferSize = getBufferSize( description.format, description.width*description.height );
     allocateFrameBufferPool( bufferSize );
-    for( unsigned i=0; i<description.numCustomParameters; ++i ) {
-        const char * const key = description.customParameters[i].key;
-        const char * const value = description.customParameters[i].value;
+
+    handleCustomParameters( description.customParameters, description.numCustomParameters );
+
+    init();
+}
+
+void CameraGstreamer::handleCustomParameters( const DUCustomCameraParameter * customParameters, uint8_t numCustomParameters) {
+    std::cout << "[camera "<<_cameraId<<"] Handling custom parameters. Number of parameters: " << unsigned(numCustomParameters) << std::endl;
+    for( unsigned i=0; i<numCustomParameters; ++i ) {
+        const char * const key = customParameters[i].key;
+        const char * const value = customParameters[i].value;
+        std::cout << "[camera "<<_cameraId<<"] Handling custom parameter key:value ("<<key<<":"<<value<<")" << std::endl;
         auto handler = optionHandlers.find(key);
         if( handler == optionHandlers.end() ) {
             std::ostringstream errorMsg;
-            errorMsg<<"GStreamer Camera passed unsupported custom parameter \""<<key<<"\"";
+            errorMsg<<"[ERROR] GStreamer Camera "<<_cameraId<<" passed unsupported custom parameter \""<<key<<"\"" << std::endl;
+            std::cerr << errorMsg.str();
             throw std::runtime_error( errorMsg.str() );
         }
 
         (this->*(handler->second))( key, value );
     }
-    init();
+
 }
 
 void CameraGstreamer::allocateFrameBufferPool(unsigned bufferSize) {
