@@ -32,7 +32,11 @@ public:
           const DUCameraDescriptor description,
           CamerasManager *manager,
           unsigned framesPerSecond );
-    virtual ~CameraGstreamer();
+    ~CameraGstreamer();
+
+    CameraGstreamer(const CameraGstreamer &) = delete;
+    CameraGstreamer& operator=(const CameraGstreamer &) = delete;
+
     void init();
     void start();
     void stop();
