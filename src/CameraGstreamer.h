@@ -41,11 +41,14 @@ public:
     void init();
     void start();
     void stop();
+    void stopAlignToFpsThread();
     void playGetVideoPackets();
     bool getIsTrigger() const { return _trigger; }
     void setTrigger(bool trigger){ _trigger = trigger; }
 
 private:
+    static constexpr microseconds NO_SIGNAL_TIMEOUT_IN_US = 300'000;
+    static constexpr microseconds RESTART_PIPELINE_TIMEOUT_IN_US = 2'000'000;
 
     struct FrameBuffer{
           uint8_t *buffer     = nullptr;
@@ -61,7 +64,7 @@ private:
     void stopPipeline();
     void pausePipeline();
     void resumePipeline();
-    void createPipeline( std::string pipeline );
+    void createPipeline();
     static gboolean busCallback( GstBus *bus, GstMessage *msg, gpointer data );
     static GstFlowReturn onEos( GstElement *element, gpointer user_data );
     static GstFlowReturn onNewSample( GstElement *element, gpointer user_data );
@@ -75,9 +78,11 @@ private:
     void allocateFrameBufferPool(unsigned bufferSize);
     void releaseBufferPool();
     void handleCustomParameters( const DUCustomCameraParameter * customParameters, uint8_t numCustomParameters);
+    void restartPipeline();
+    microseconds timeSinceLastRestartPipelineUS() const;
+    bool shouldRestartPipelineFromNoSignal() const;
 
     static const std::unordered_map< std::string, void (CameraGstreamer::*)( const char *key, const char *value ) > optionHandlers;
-
 
     const unsigned int      _cameraId;
     CamerasManager * const   _manager;
@@ -94,4 +99,6 @@ private:
     std::atomic<bool>       _isRunning;
     bool                    _trigger                = false;
     uint32_t                _frameIndex             = 0;
+    time_point              _lastPipelineRestartTimestamp;
+
 };

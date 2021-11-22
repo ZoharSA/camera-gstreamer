@@ -13,6 +13,8 @@ gboolean CameraGstreamer::busCallback( GstBus *bus, GstMessage *msg, gpointer da
     GError *err = NULL;
     gchar *debug = NULL;
 
+    std::cout << "Bus callback called with message of type: " << GST_MESSAGE_TYPE_NAME(msg) << std::endl;
+
     switch (GST_MESSAGE_TYPE(msg)) {
         case GST_MESSAGE_EOS:
             g_print("got EOS\n");
@@ -25,6 +27,7 @@ gboolean CameraGstreamer::busCallback( GstBus *bus, GstMessage *msg, gpointer da
             gst_message_parse_error(msg, &err, &debug);
             g_print("[ERROR] %s\n%s\n", err->message, debug);
         default:
+            std::cout << "Bus callback called with unhandled message type: " << GST_MESSAGE_TYPE_NAME(msg) << std::endl;
             break;
     }
     return TRUE;
@@ -108,6 +111,10 @@ void CameraGstreamer::start() {
 
 void CameraGstreamer::stop() {
     stopPipeline();
+    stopAlignToFpsThread();
+}
+
+void CameraGstreamer::stopAlignToFpsThread() {
     if( _alignToFpsThread.joinable() ) {
         _alignToFpsThread.join();
     }
@@ -125,15 +132,16 @@ GstFlowReturn CameraGstreamer::onEos( GstElement *element, gpointer user_data ) 
 
 void CameraGstreamer::playGetVideoPackets() {
     if ( !_isRunning ) {
-        std::stringstream s;
-        s << _gstreamPipeline;
-        createPipeline(s.str());
+        createPipeline();
         GstElement *appsink = gst_bin_get_by_name( GST_BIN(this->current_pipeline), "appsink" );
         g_signal_connect( appsink, "new_sample", G_CALLBACK(CameraGstreamer::onNewSample), this );
         if( _loop ) {
             g_signal_connect( appsink, "eos", G_CALLBACK(onEos), this );
         }
         startPipeline();
+    }
+    else {
+        std::cout << "[camera "<<_cameraId<<"] playGetVideoPackets called, but alignToFps thread is already running." << std::endl;
     }
 }
 
@@ -143,6 +151,7 @@ void CameraGstreamer::startPipeline() {
         std::cout << "Start pipeline,  camera id: " << _cameraId << std::endl;
         gst_element_set_state( this->current_pipeline, GST_STATE_PLAYING );
         _isRunning = true;
+        _lastPipelineRestartTimestamp = std::chrono::steady_clock::now();
     }
 }
 
@@ -170,8 +179,9 @@ void CameraGstreamer::resumePipeline() {
     }
 }
 
-void CameraGstreamer::createPipeline( std::string pipe ) {
+void CameraGstreamer::createPipeline() {
     GError *e = NULL;
+    const std::string pipe = _gstreamPipeline;
     this->current_pipeline = gst_parse_launch( pipe.c_str(), &e );
     if ( e != NULL || this->current_pipeline == NULL ) {
         std::cout << "[ERROR] Failed to run pipeline: \n ~~~ " << pipe << "\n"
@@ -219,24 +229,42 @@ GstFlowReturn CameraGstreamer::onNewSample( GstElement *element, gpointer user_d
     return GST_FLOW_OK;
 }
 
+void CameraGstreamer::restartPipeline() {
+    std::cout << "[camera "<<_cameraId<<"] Restarting pipeline." << std::endl;
+    stopPipeline();
+    playGetVideoPackets();
+    _restartPipeline = false;
+    std::cout << "[camera "<<_cameraId<<"] Finished restarting pipeline." << std::endl;
+}
+
+microseconds CameraGstreamer::timeSinceLastRestartPipelineUS() const {
+    return DurationUS(std::chrono::steady_clock::now() - _lastPipelineRestartTimestamp).count();
+}
+
+bool CameraGstreamer::shouldRestartPipelineFromNoSignal() const {
+    return ( _noSignal && (timeSinceLastRestartPipelineUS() >= RESTART_PIPELINE_TIMEOUT_IN_US) );
+}
+
 void CameraGstreamer::alignToFps()
 {
     _threadAlignToFpsId = syscall( SYS_gettid );
     const microseconds timeBetweenFramesInUS = 1'000'000 / _framesPerSecond;
-    constexpr microseconds NO_SIGNAL_TIMEOUT_IN_US = 300'000;
     _lastCapturedTimestamp = std::chrono::steady_clock::now();
+
     while ( _isRunning ) {
         const microseconds curr_duration = DurationUS(std::chrono::steady_clock::now() -  _lastCapturedTimestamp).count();
         if( _restartPipeline ) {
-            stopPipeline();
-            playGetVideoPackets();
-            _restartPipeline = false;
+            restartPipeline();
             continue;
         }
         if( !_noSignal && curr_duration >= NO_SIGNAL_TIMEOUT_IN_US ){
             std::cout << "[camera "<<_cameraId<<"] No frame captured in last "<<curr_duration<<"us (no-signal timeout is "<<NO_SIGNAL_TIMEOUT_IN_US<<"us)." << std::endl;
             _manager->badCamera( _cameraId );
             _noSignal = true;
+        }
+        else if ( shouldRestartPipelineFromNoSignal() ) {
+            restartPipeline();
+            continue;
         }
         else if ( _noSignal && curr_duration < NO_SIGNAL_TIMEOUT_IN_US ){
             std::cout << "[camera "<<_cameraId<<"] Frame successfully captured - camera recovered from no-signal." << std::endl;
