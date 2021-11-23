@@ -43,7 +43,8 @@ CameraGstreamer::CameraGstreamer( CameraId id,
     _framesPerSecond( framesPerSecond ),
     _noSignal( false ),
     _gstreamPipeline( description.id ),
-    _isRunning( false )
+    _isRunning( false ),
+    _restartPipeline( false )
 {
     assert( _framesPerSecond > 0 );
     assert( description.width > 0 );
@@ -151,7 +152,6 @@ void CameraGstreamer::startPipeline() {
         std::cout << "Start pipeline,  camera id: " << _cameraId << std::endl;
         gst_element_set_state( this->current_pipeline, GST_STATE_PLAYING );
         _isRunning = true;
-        _lastPipelineRestartTimestamp = std::chrono::steady_clock::now();
     }
 }
 
@@ -233,7 +233,7 @@ void CameraGstreamer::restartPipeline() {
     std::cout << "[camera "<<_cameraId<<"] Restarting pipeline." << std::endl;
     stopPipeline();
     playGetVideoPackets();
-    _restartPipeline = false;
+    _lastPipelineRestartTimestamp = std::chrono::steady_clock::now();
     std::cout << "[camera "<<_cameraId<<"] Finished restarting pipeline." << std::endl;
 }
 
@@ -242,7 +242,7 @@ microseconds CameraGstreamer::timeSinceLastRestartPipelineUS() const {
 }
 
 bool CameraGstreamer::shouldRestartPipelineFromNoSignal() const {
-    return ( _noSignal && (timeSinceLastRestartPipelineUS() >= RESTART_PIPELINE_TIMEOUT_IN_US) );
+    return ( _restartPipeline && (timeSinceLastRestartPipelineUS() >= RESTART_PIPELINE_TIMEOUT_IN_US) );
 }
 
 void CameraGstreamer::alignToFps()
@@ -253,10 +253,7 @@ void CameraGstreamer::alignToFps()
 
     while ( _isRunning ) {
         const microseconds curr_duration = DurationUS(std::chrono::steady_clock::now() -  _lastCapturedTimestamp).count();
-        if( _restartPipeline ) {
-            restartPipeline();
-            continue;
-        }
+
         if( !_noSignal && curr_duration >= NO_SIGNAL_TIMEOUT_IN_US ){
             std::cout << "[camera "<<_cameraId<<"] No frame captured in last "<<curr_duration<<"us (no-signal timeout is "<<NO_SIGNAL_TIMEOUT_IN_US<<"us)." << std::endl;
             _manager->badCamera( _cameraId );
@@ -270,6 +267,7 @@ void CameraGstreamer::alignToFps()
             std::cout << "[camera "<<_cameraId<<"] Frame successfully captured - camera recovered from no-signal." << std::endl;
             _manager->goodCamera( _cameraId );
             _noSignal = false;
+            _restartPipeline = false;
         }
         if( !_noSignal ){
             int usingBuffer = _readyToUseBuffer;
@@ -281,6 +279,14 @@ void CameraGstreamer::alignToFps()
                         _frameBufferPool[usingBuffer].frameIndex,
                         _trigger );
              }
+        }
+        else {
+            if (!_restartPipeline and gst_element_get_state ( this->current_pipeline, NULL, NULL, -1) == GST_STATE_CHANGE_FAILURE) {
+                std::cout << "[camera "<<_cameraId<<"]  State change failure" <<std::endl;
+                restartPipeline();
+                _lastPipelineRestartTimestamp = std::chrono::steady_clock::now();
+                _restartPipeline = true;
+            }
         }
         usleep(timeBetweenFramesInUS);
     }
