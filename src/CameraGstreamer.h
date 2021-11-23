@@ -81,6 +81,8 @@ private:
     void restartPipeline();
     microseconds timeSinceLastRestartPipelineUS() const;
     bool shouldRestartPipelineFromNoSignal() const;
+    GstStateChangeReturn getPipelineState() const;
+    bool pipelineFailure() const;
 
     static const std::unordered_map< std::string, void (CameraGstreamer::*)( const char *key, const char *value ) > optionHandlers;
 
@@ -100,5 +102,6 @@ private:
     bool                    _trigger                = false;
     uint32_t                _frameIndex             = 0;
     time_point              _lastPipelineRestartTimestamp;
+    bool                    _pipelineFailed;
 
 };

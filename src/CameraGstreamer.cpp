@@ -44,7 +44,7 @@ CameraGstreamer::CameraGstreamer( CameraId id,
     _noSignal( false ),
     _gstreamPipeline( description.id ),
     _isRunning( false ),
-    _restartPipeline( false )
+    _pipelineFailed( false )
 {
     assert( _framesPerSecond > 0 );
     assert( description.width > 0 );
@@ -242,7 +242,7 @@ microseconds CameraGstreamer::timeSinceLastRestartPipelineUS() const {
 }
 
 bool CameraGstreamer::shouldRestartPipelineFromNoSignal() const {
-    return ( _restartPipeline && (timeSinceLastRestartPipelineUS() >= RESTART_PIPELINE_TIMEOUT_IN_US) );
+    return ( _pipelineFailed && (timeSinceLastRestartPipelineUS() >= RESTART_PIPELINE_TIMEOUT_IN_US) );
 }
 
 void CameraGstreamer::alignToFps()
@@ -251,8 +251,14 @@ void CameraGstreamer::alignToFps()
     const microseconds timeBetweenFramesInUS = 1'000'000 / _framesPerSecond;
     _lastCapturedTimestamp = std::chrono::steady_clock::now();
 
+    std::cout << "[camera "<<_cameraId<<"] Pipeline state: " << getPipelineState() << std::endl;
+
     while ( _isRunning ) {
         const microseconds curr_duration = DurationUS(std::chrono::steady_clock::now() -  _lastCapturedTimestamp).count();
+        if( _restartPipeline ) {
+            restartPipeline();
+            continue;
+        }
 
         if( !_noSignal && curr_duration >= NO_SIGNAL_TIMEOUT_IN_US ){
             std::cout << "[camera "<<_cameraId<<"] No frame captured in last "<<curr_duration<<"us (no-signal timeout is "<<NO_SIGNAL_TIMEOUT_IN_US<<"us)." << std::endl;
@@ -267,7 +273,7 @@ void CameraGstreamer::alignToFps()
             std::cout << "[camera "<<_cameraId<<"] Frame successfully captured - camera recovered from no-signal." << std::endl;
             _manager->goodCamera( _cameraId );
             _noSignal = false;
-            _restartPipeline = false;
+            _pipelineFailed = false;
         }
         if( !_noSignal ){
             int usingBuffer = _readyToUseBuffer;
@@ -280,17 +286,22 @@ void CameraGstreamer::alignToFps()
                         _trigger );
              }
         }
-        else {
-            if (!_restartPipeline and gst_element_get_state ( this->current_pipeline, NULL, NULL, -1) == GST_STATE_CHANGE_FAILURE) {
-                std::cout << "[camera "<<_cameraId<<"]  State change failure" <<std::endl;
-                restartPipeline();
-                _lastPipelineRestartTimestamp = std::chrono::steady_clock::now();
-                _restartPipeline = true;
-            }
+        else if ( !_pipelineFailed and pipelineFailure() ) {
+            std::cout << "[camera "<<_cameraId<<"]  Pipline state changed to FAILURE." <<std::endl;
+            restartPipeline();
+            _pipelineFailed = true;
         }
         usleep(timeBetweenFramesInUS);
     }
     std::cout << "[camera "<<_cameraId<<"] alignToFps thread finished running." << std::endl;
+}
+
+GstStateChangeReturn CameraGstreamer::getPipelineState() const {
+    return gst_element_get_state( current_pipeline, NULL, NULL, -1) ;
+}
+
+bool CameraGstreamer::pipelineFailure() const {
+    return getPipelineState() == GST_STATE_CHANGE_FAILURE;
 }
 
 unsigned CameraGstreamer::getBufferSize( DUFrameFormat format, unsigned size )
