@@ -49,6 +49,7 @@ public:
 private:
     static constexpr microseconds NO_SIGNAL_TIMEOUT_IN_US = 300'000;
     static constexpr microseconds RESTART_PIPELINE_TIMEOUT_IN_US = 2'000'000;
+    static constexpr guint INVALID_BUS_WATCH_ID = 0;
 
     struct FrameBuffer{
           uint8_t *buffer     = nullptr;
@@ -84,6 +85,7 @@ private:
     GstStateChangeReturn getPipelineState() const;
     bool pipelineFailure() const;
     void addBusWatch();
+    void removeBusWatch();
 
     static const std::unordered_map< std::string, void (CameraGstreamer::*)( const char *key, const char *value ) > optionHandlers;
 
@@ -104,5 +106,6 @@ private:
     uint32_t                _frameIndex             = 0;
     time_point              _lastPipelineRestartTimestamp;
     bool                    _pipelineFailed;
+    guint                   _busWatchId             = INVALID_BUS_WATCH_ID;
 
 };
