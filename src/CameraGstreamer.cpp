@@ -134,7 +134,7 @@ GstFlowReturn CameraGstreamer::onEos( GstElement *element, gpointer user_data ) 
 void CameraGstreamer::playGetVideoPackets() {
     if ( !_isRunning ) {
         createPipeline();
-        GstElement *appsink = gst_bin_get_by_name( GST_BIN(this->current_pipeline), "appsink" );
+        GstElement *appsink = gst_bin_get_by_name( GST_BIN(_currentPipelineElement), "appsink" );
         g_signal_connect( appsink, "new_sample", G_CALLBACK(CameraGstreamer::onNewSample), this );
         if( _loop ) {
             g_signal_connect( appsink, "eos", G_CALLBACK(onEos), this );
@@ -148,32 +148,32 @@ void CameraGstreamer::playGetVideoPackets() {
 
 
 void CameraGstreamer::startPipeline() {
-    if ( !_isRunning && this->current_pipeline != NULL ) {
+    if ( !_isRunning && _currentPipelineElement != NULL ) {
         std::cout << "Start pipeline,  camera id: " << _cameraId << std::endl;
-        gst_element_set_state( this->current_pipeline, GST_STATE_PLAYING );
+        gst_element_set_state( _currentPipelineElement, GST_STATE_PLAYING );
         _isRunning = true;
     }
 }
 
 void CameraGstreamer::stopPipeline() {
-    if ( _isRunning && this->current_pipeline != NULL ) {
+    if ( _isRunning && _currentPipelineElement != NULL ) {
         std::cout << "Stop pipeline, camera id: " << _cameraId << std::endl;
-        gst_element_set_state( this->current_pipeline, GST_STATE_NULL );
-        this->current_pipeline = NULL;
+        gst_element_set_state( _currentPipelineElement, GST_STATE_NULL );
+        _currentPipelineElement = NULL;
         _isRunning = false;
     }
 }
 
 void CameraGstreamer::pausePipeline() {
-    if ( this->current_pipeline != NULL ) {
-        gst_element_set_state( this->current_pipeline, GST_STATE_PAUSED );
+    if ( _currentPipelineElement != NULL ) {
+        gst_element_set_state( _currentPipelineElement, GST_STATE_PAUSED );
         _isRunning = false;
     }
 }
 
 void CameraGstreamer::resumePipeline() {
-    if ( this->current_pipeline != NULL ) {
-        if ( gst_element_set_state( this->current_pipeline, GST_STATE_PLAYING ) != GST_STATE_CHANGE_FAILURE ) {
+    if ( _currentPipelineElement != NULL ) {
+        if ( gst_element_set_state( _currentPipelineElement, GST_STATE_PLAYING ) != GST_STATE_CHANGE_FAILURE ) {
             _isRunning = true;
         }
     }
@@ -182,14 +182,14 @@ void CameraGstreamer::resumePipeline() {
 void CameraGstreamer::createPipeline() {
     GError *e = NULL;
     const std::string pipe = _gstreamPipeline;
-    this->current_pipeline = gst_parse_launch( pipe.c_str(), &e );
-    if ( e != NULL || this->current_pipeline == NULL ) {
+    _currentPipelineElement = gst_parse_launch( pipe.c_str(), &e );
+    if ( e != NULL || _currentPipelineElement == NULL ) {
         std::cout << "[ERROR] Failed to run pipeline: \n ~~~ " << pipe << "\n"
                   << "[Error]: " << e->message << std::endl;
         throw std::runtime_error(e->message);
     }
     std::cout << "Running pipeline: \n ~~~ " << pipe << std::endl;
-    GstBus *bus = gst_element_get_bus( this->current_pipeline );
+    GstBus *bus = gst_element_get_bus( _currentPipelineElement );
     gst_bus_add_watch( bus, CameraGstreamer::busCallback, this );
     gst_object_unref( bus );
 }
@@ -297,7 +297,7 @@ void CameraGstreamer::alignToFps()
 }
 
 GstStateChangeReturn CameraGstreamer::getPipelineState() const {
-    return gst_element_get_state( current_pipeline, NULL, NULL, -1) ;
+    return gst_element_get_state( _currentPipelineElement, NULL, NULL, -1) ;
 }
 
 bool CameraGstreamer::pipelineFailure() const {

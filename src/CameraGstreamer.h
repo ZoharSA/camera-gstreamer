@@ -58,7 +58,7 @@ private:
     };
 
     GMainLoop *loop = NULL;
-    GstElement *current_pipeline = NULL;
+    GstElement *_currentPipelineElement = NULL;
 
     void startPipeline();
     void stopPipeline();
