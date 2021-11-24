@@ -160,6 +160,8 @@ void CameraGstreamer::stopPipeline() {
     if ( _isRunning && _currentPipelineElement != NULL ) {
         std::cout << "Stop pipeline, camera id: " << _cameraId << std::endl;
         gst_element_set_state( _currentPipelineElement, GST_STATE_NULL );
+        gst_object_unref(_currentPipelineElement);
+        removeBusWatch();
         _currentPipelineElement = NULL;
         _isRunning = false;
     }
@@ -196,10 +198,19 @@ void CameraGstreamer::createPipeline() {
 
 void CameraGstreamer::addBusWatch() {
     assert(_currentPipelineElement != nullptr);
+    assert(_busWatchId == INVALID_BUS_WATCH_ID);
+
     GstBus *bus = gst_element_get_bus( _currentPipelineElement );
     constexpr auto UNUSED_USER_DATA = nullptr;
-    gst_bus_add_watch( bus, busCallback, UNUSED_USER_DATA );
+    _busWatchId = gst_bus_add_watch(bus, busCallback, UNUSED_USER_DATA);
+    assert(_busWatchId != INVALID_BUS_WATCH_ID);
     gst_object_unref( bus );
+}
+
+void CameraGstreamer::removeBusWatch() {
+    assert( _busWatchId != INVALID_BUS_WATCH_ID );
+    g_source_remove(_busWatchId);
+    _busWatchId = INVALID_BUS_WATCH_ID;
 }
 
 void CameraGstreamer::onVideoFrame( GstVideoFrame *frame ) {
