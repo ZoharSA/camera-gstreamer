@@ -83,6 +83,7 @@ private:
     bool shouldRestartPipelineFromNoSignal() const;
     GstStateChangeReturn getPipelineState() const;
     bool pipelineFailure() const;
+    void addBusWatch();
 
     static const std::unordered_map< std::string, void (CameraGstreamer::*)( const char *key, const char *value ) > optionHandlers;
 

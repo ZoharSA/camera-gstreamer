@@ -9,7 +9,7 @@ const std::unordered_map< std::string, void (CameraGstreamer::*)( const char *ke
     {"trigger", &CameraGstreamer::optionTrigger}
 };
 
-gboolean CameraGstreamer::busCallback( GstBus *bus, GstMessage *msg, gpointer data) {
+gboolean CameraGstreamer::busCallback( GstBus *bus, GstMessage *msg, gpointer unusedUserData) {
     GError *err = NULL;
     gchar *debug = NULL;
 
@@ -134,6 +134,7 @@ GstFlowReturn CameraGstreamer::onEos( GstElement *element, gpointer user_data ) 
 void CameraGstreamer::playGetVideoPackets() {
     if ( !_isRunning ) {
         createPipeline();
+        addBusWatch();
         GstElement *appsink = gst_bin_get_by_name( GST_BIN(_currentPipelineElement), "appsink" );
         g_signal_connect( appsink, "new_sample", G_CALLBACK(CameraGstreamer::onNewSample), this );
         if( _loop ) {
@@ -180,6 +181,7 @@ void CameraGstreamer::resumePipeline() {
 }
 
 void CameraGstreamer::createPipeline() {
+    assert(_currentPipelineElement == nullptr);
     GError *e = NULL;
     const std::string pipe = _gstreamPipeline;
     _currentPipelineElement = gst_parse_launch( pipe.c_str(), &e );
@@ -189,8 +191,14 @@ void CameraGstreamer::createPipeline() {
         throw std::runtime_error(e->message);
     }
     std::cout << "Running pipeline: \n ~~~ " << pipe << std::endl;
+    assert(_currentPipelineElement != nullptr);
+}
+
+void CameraGstreamer::addBusWatch() {
+    assert(_currentPipelineElement != nullptr);
     GstBus *bus = gst_element_get_bus( _currentPipelineElement );
-    gst_bus_add_watch( bus, CameraGstreamer::busCallback, this );
+    constexpr auto UNUSED_USER_DATA = nullptr;
+    gst_bus_add_watch( bus, busCallback, UNUSED_USER_DATA );
     gst_object_unref( bus );
 }
 
