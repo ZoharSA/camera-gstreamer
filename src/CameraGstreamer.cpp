@@ -270,8 +270,6 @@ void CameraGstreamer::alignToFps()
     const microseconds timeBetweenFramesInUS = 1'000'000 / _framesPerSecond;
     _lastCapturedTimestamp = std::chrono::steady_clock::now();
 
-    std::cout << "[camera "<<_cameraId<<"] Pipeline state: " << getPipelineState() << std::endl;
-
     while ( _isRunning ) {
         const microseconds curr_duration = DurationUS(std::chrono::steady_clock::now() -  _lastCapturedTimestamp).count();
         if( _restartPipeline ) {
@@ -315,12 +313,16 @@ void CameraGstreamer::alignToFps()
     std::cout << "[camera "<<_cameraId<<"] alignToFps thread finished running." << std::endl;
 }
 
-GstStateChangeReturn CameraGstreamer::getPipelineState() const {
+GstStateChangeReturn CameraGstreamer::getPipelineStateChangeReturn() const {
     return gst_element_get_state( _currentPipelineElement, NULL, NULL, -1) ;
 }
 
 bool CameraGstreamer::pipelineFailure() const {
-    return getPipelineState() == GST_STATE_CHANGE_FAILURE;
+    // NOTE: I experimented and saw that when a camera disconnects,
+    // the state stays stuck on GST_STATE_PLAYING (4),
+    // but the GstStateChangeReturn switches to GST_STATE_CHANGE_FAILURE (0).
+    // So using the state_change failure as an indication for camera failure
+    return getPipelineStateChangeReturn() == GST_STATE_CHANGE_FAILURE;
 }
 
 unsigned CameraGstreamer::getBufferSize( DUFrameFormat format, unsigned size )

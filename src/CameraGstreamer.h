@@ -82,7 +82,7 @@ private:
     void restartPipeline();
     microseconds timeSinceLastRestartPipelineUS() const;
     bool shouldRestartPipelineFromNoSignal() const;
-    GstStateChangeReturn getPipelineState() const;
+    GstStateChangeReturn getPipelineStateChangeReturn() const;
     bool pipelineFailure() const;
     void addBusWatch();
     void removeBusWatch();
