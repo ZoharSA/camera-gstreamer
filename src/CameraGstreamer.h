@@ -89,6 +89,8 @@ private:
 
     static const std::unordered_map< std::string, void (CameraGstreamer::*)( const char *key, const char *value ) > optionHandlers;
 
+
+    const unsigned int      _bufferSize;
     const unsigned int      _cameraId;
     CamerasManager * const   _manager;
     std::atomic<int>        _readyToUseBuffer;

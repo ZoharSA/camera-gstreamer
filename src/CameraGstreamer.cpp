@@ -37,6 +37,7 @@ CameraGstreamer::CameraGstreamer( CameraId id,
         const DUCameraDescriptor description,
         CamerasManager *manager,
         unsigned framesPerSecond ):
+    _bufferSize( getBufferSize( description.format, description.width*description.height ) ),
     _cameraId( id ),
     _manager( manager ),
     _readyToUseBuffer ( -1 ),
@@ -50,8 +51,7 @@ CameraGstreamer::CameraGstreamer( CameraId id,
     assert( description.width > 0 );
     assert( description.height > 0 );
 
-    const unsigned bufferSize = getBufferSize( description.format, description.width*description.height );
-    allocateFrameBufferPool( bufferSize );
+    allocateFrameBufferPool( _bufferSize );
 
     handleCustomParameters( description.customParameters, description.numCustomParameters );
 
@@ -78,6 +78,7 @@ void CameraGstreamer::handleCustomParameters( const DUCustomCameraParameter * cu
 }
 
 void CameraGstreamer::allocateFrameBufferPool(unsigned bufferSize) {
+    std::cout << "Allocating " << RING << " buffers of " << bufferSize << " bytes each" << std::endl;
     for (unsigned i = 0; i < RING; ++i) {
         assert(_frameBufferPool[i].buffer == nullptr);
         _frameBufferPool[i].buffer = new uint8_t[bufferSize];
@@ -217,6 +218,15 @@ void CameraGstreamer::onVideoFrame( GstVideoFrame *frame ) {
     int currBufferIndex = (_readyToUseBuffer + 1) % RING;
 
     _lastCapturedTimestamp = std::chrono::steady_clock::now();
+
+    const size_t frameSize = GST_VIDEO_FRAME_SIZE(frame);
+    if ( _bufferSize != frameSize ) {
+        std::cerr << "[camera "<<_cameraId<<"] CRITICAL ERROR: Received a frame of size " << frameSize << \
+                     " while allocated buffer size is" << _bufferSize << " bytes. " << \
+                     "Please check configured sizes in camers.yaml. Aborting execution." << std::endl;
+        assert( ("Received frame size doesn't match allocated buffer size.", false) );
+    }
+
     std::memcpy( &_frameBufferPool[currBufferIndex].buffer[0], GST_VIDEO_FRAME_PLANE_DATA(frame, 0), GST_VIDEO_FRAME_SIZE(frame) );
     _frameBufferPool[currBufferIndex].bufferSize = GST_VIDEO_FRAME_SIZE(frame);
     _frameBufferPool[currBufferIndex].timestamp = std::chrono::steady_clock::now();
