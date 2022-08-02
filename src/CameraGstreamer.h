@@ -17,6 +17,7 @@
 #include <sys/syscall.h>
 #include <unordered_map>
 #include <atomic>
+#include <queue>
 
 constexpr const unsigned RING = 3;
 
@@ -45,7 +46,7 @@ public:
     void playGetVideoPackets();
     bool getIsTrigger() const { return _trigger; }
     void setTrigger(bool trigger){ _trigger = trigger; }
-
+    void getStartTimestamp();
 private:
     static constexpr microseconds NO_SIGNAL_TIMEOUT_IN_US = 300'000;
     static constexpr microseconds RESTART_PIPELINE_TIMEOUT_IN_US = 2'000'000;
@@ -56,6 +57,11 @@ private:
           int bufferSize      = 0;
           time_point timestamp;
           uint32_t frameIndex = 0;
+    };
+
+    struct StartTimestamp{
+        time_point timestamp;
+        unsigned long long frameIndex = 0;
     };
 
     GMainLoop *loop = NULL;
@@ -86,7 +92,6 @@ private:
     bool pipelineFailure() const;
     void addBusWatch();
     void removeBusWatch();
-
     static const std::unordered_map< std::string, void (CameraGstreamer::*)( const char *key, const char *value ) > optionHandlers;
 
 
@@ -96,6 +101,7 @@ private:
     std::atomic<int>        _readyToUseBuffer;
     const unsigned int      _framesPerSecond;
     bool                    _noSignal               = false;
+    bool                    _noStartTimestamp       = false;
     FrameBuffer             _frameBufferPool[RING];
     time_point              _lastCapturedTimestamp;
     pid_t                   _threadAlignToFpsId     = -1;
@@ -105,9 +111,10 @@ private:
     bool                    _loop                   = false;
     std::atomic<bool>       _isRunning;
     bool                    _trigger                = false;
-    uint32_t                _frameIndex             = 0;
+    uint32_t                _appSinkFrameIndex      = 0;
     time_point              _lastPipelineRestartTimestamp;
+    std::queue<StartTimestamp>  _startTimestampQueue;
     bool                    _pipelineFailed;
     guint                   _busWatchId             = INVALID_BUS_WATCH_ID;
-
+    unsigned long long      _startTimestampFrameIndex = 0;
 };

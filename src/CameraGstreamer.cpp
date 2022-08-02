@@ -131,6 +131,11 @@ GstFlowReturn CameraGstreamer::onEos( GstElement *element, gpointer user_data ) 
 
     return GST_FLOW_OK;
 }
+static GstPadProbeReturn startTimestamp_srcpad_probe(GstPad *pad, GstPadProbeInfo *info, gpointer user_data) {
+    CameraGstreamer *self = (CameraGstreamer *)user_data;
+    self->getStartTimestamp();
+    return GST_PAD_PROBE_OK;
+}
 
 void CameraGstreamer::playGetVideoPackets() {
     if ( !_isRunning ) {
@@ -138,6 +143,10 @@ void CameraGstreamer::playGetVideoPackets() {
         addBusWatch();
         GstElement *appsink = gst_bin_get_by_name( GST_BIN(_currentPipelineElement), "appsink" );
         g_signal_connect( appsink, "new_sample", G_CALLBACK(CameraGstreamer::onNewSample), this );
+        GstElement *startTimestamp = gst_bin_get_by_name(GST_BIN(_currentPipelineElement), "start_timestamp");
+        GstPad *startTimestamp_srcpad = gst_element_get_static_pad(startTimestamp, "src");
+        gst_pad_add_probe(startTimestamp_srcpad, GST_PAD_PROBE_TYPE_BUFFER, startTimestamp_srcpad_probe, this, NULL);
+
         if( _loop ) {
             g_signal_connect( appsink, "eos", G_CALLBACK(onEos), this );
         }
@@ -229,9 +238,29 @@ void CameraGstreamer::onVideoFrame( GstVideoFrame *frame ) {
 
     std::memcpy( &_frameBufferPool[currBufferIndex].buffer[0], GST_VIDEO_FRAME_PLANE_DATA(frame, 0), GST_VIDEO_FRAME_SIZE(frame) );
     _frameBufferPool[currBufferIndex].bufferSize = GST_VIDEO_FRAME_SIZE(frame);
-    _frameBufferPool[currBufferIndex].timestamp = std::chrono::steady_clock::now();
-    _frameBufferPool[currBufferIndex].frameIndex = ++_frameIndex; // frame->id;
+    StartTimestamp startTimestamp;
+    if (_startTimestampQueue.size() != 0) {
+        startTimestamp = _startTimestampQueue.front();
+        if (startTimestamp.frameIndex != _appSinkFrameIndex) {
+            std::cout << "Lost frames in pipline. start timestamp frame index: " << startTimestamp.frameIndex <<" sink timestamp index: "  << _appSinkFrameIndex << std::endl;
+        }
+        _startTimestampQueue.pop();
+        _noStartTimestamp = false;
+    } else if (_noStartTimestamp == false) {
+        std::cout << "[camera "<<_cameraId<<"] no start_timestamp name was set." << std::endl;
+        _noStartTimestamp = true;
+    }
+
+    _frameBufferPool[currBufferIndex].timestamp = startTimestamp.timestamp;
+    _frameBufferPool[currBufferIndex].frameIndex = ++_appSinkFrameIndex; // frame->id;
     _readyToUseBuffer =  currBufferIndex;
+}
+
+void CameraGstreamer::getStartTimestamp() {
+    StartTimestamp startTimestamp;
+    startTimestamp.timestamp = std::chrono::steady_clock::now();
+    startTimestamp.frameIndex = _startTimestampFrameIndex++;
+    _startTimestampQueue.push(startTimestamp);
 }
 
 GstFlowReturn CameraGstreamer::onNewSample( GstElement *element, gpointer user_data ) {
