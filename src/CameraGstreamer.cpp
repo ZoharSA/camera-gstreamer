@@ -80,16 +80,16 @@ void CameraGstreamer::handleCustomParameters( const DUCustomCameraParameter * cu
 void CameraGstreamer::allocateFrameBufferPool(unsigned bufferSize) {
     std::cout << "Allocating " << RING << " buffers of " << bufferSize << " bytes each" << std::endl;
     for (unsigned i = 0; i < RING; ++i) {
-        assert(_frameBufferPool[i].buffer == nullptr);
-        _frameBufferPool[i].buffer = new uint8_t[bufferSize];
+        assert(_frameBufferPool[i] == nullptr);
+        _frameBufferPool[i] = new uint8_t[bufferSize];
     }
 }
 
 void CameraGstreamer::releaseBufferPool() {
     for (unsigned i = 0; i < RING; ++i) {
-        if (_frameBufferPool[i].buffer != nullptr) {
-            delete[] _frameBufferPool[i].buffer;
-            _frameBufferPool[i].buffer = nullptr;
+        if (_frameBufferPool[i] != nullptr) {
+            delete[] _frameBufferPool[i];
+            _frameBufferPool[i] = nullptr;
         }
     }
 }
@@ -106,21 +106,21 @@ void CameraGstreamer::init() {
 
 void CameraGstreamer::start() {
     playGetVideoPackets();
-    if( _threadAlignToFpsId == -1 ) {
-        _alignToFpsThread = std::thread([&]{alignToFps();});
+    if( _threadCheckPipelineStateId == -1 ) {
+        _checkPipelineStateThread = std::thread([&]{checkPipelineState();});
     }
 }
 
 void CameraGstreamer::stop() {
     stopPipeline();
-    stopAlignToFpsThread();
+    stopCheckPipelineStateThread();
 }
 
-void CameraGstreamer::stopAlignToFpsThread() {
-    if( _alignToFpsThread.joinable() ) {
-        _alignToFpsThread.join();
+void CameraGstreamer::stopCheckPipelineStateThread() {
+    if( _checkPipelineStateThread.joinable() ) {
+        _checkPipelineStateThread.join();
     }
-    _threadAlignToFpsId = -1;
+    _threadCheckPipelineStateId = -1;
 }
 
 GstFlowReturn CameraGstreamer::onEos( GstElement *element, gpointer user_data ) {
@@ -144,7 +144,7 @@ void CameraGstreamer::playGetVideoPackets() {
         startPipeline();
     }
     else {
-        std::cout << "[camera "<<_cameraId<<"] playGetVideoPackets called, but alignToFps thread is already running." << std::endl;
+        std::cout << "[camera "<<_cameraId<<"] playGetVideoPackets called, but checkPipelineState thread is already running." << std::endl;
     }
 }
 
@@ -227,11 +227,16 @@ void CameraGstreamer::onVideoFrame( GstVideoFrame *frame ) {
         assert( ("Received frame size doesn't match allocated buffer size.", false) );
     }
 
-    std::memcpy( &_frameBufferPool[currBufferIndex].buffer[0], GST_VIDEO_FRAME_PLANE_DATA(frame, 0), GST_VIDEO_FRAME_SIZE(frame) );
-    _frameBufferPool[currBufferIndex].bufferSize = GST_VIDEO_FRAME_SIZE(frame);
-    _frameBufferPool[currBufferIndex].timestamp = std::chrono::steady_clock::now();
-    _frameBufferPool[currBufferIndex].frameIndex = ++_frameIndex; // frame->id;
-    _readyToUseBuffer =  currBufferIndex;
+    std::memcpy(_frameBufferPool[currBufferIndex], GST_VIDEO_FRAME_PLANE_DATA(frame, 0), GST_VIDEO_FRAME_SIZE(frame) );
+
+    _manager->frameGrabbed( _cameraId,
+        _frameBufferPool[currBufferIndex],
+        GST_VIDEO_FRAME_SIZE(frame),
+        std::chrono::steady_clock::now(),
+        ++_frameIndex,
+        _trigger );
+
+    _readyToUseBuffer = currBufferIndex;
 }
 
 GstFlowReturn CameraGstreamer::onNewSample( GstElement *element, gpointer user_data ) {
@@ -274,9 +279,9 @@ bool CameraGstreamer::shouldRestartPipelineFromNoSignal() const {
     return ( _pipelineFailed && (timeSinceLastRestartPipelineUS() >= RESTART_PIPELINE_TIMEOUT_IN_US) );
 }
 
-void CameraGstreamer::alignToFps()
+void CameraGstreamer::checkPipelineState()
 {
-    _threadAlignToFpsId = syscall( SYS_gettid );
+    _threadCheckPipelineStateId = syscall( SYS_gettid );
     const microseconds timeBetweenFramesInUS = 1'000'000 / _framesPerSecond;
     _lastCapturedTimestamp = std::chrono::steady_clock::now();
 
@@ -286,7 +291,6 @@ void CameraGstreamer::alignToFps()
             restartPipeline();
             continue;
         }
-
         if( !_noSignal && curr_duration >= NO_SIGNAL_TIMEOUT_IN_US ){
             std::cout << "[camera "<<_cameraId<<"] No frame captured in last "<<curr_duration<<"us (no-signal timeout is "<<NO_SIGNAL_TIMEOUT_IN_US<<"us)." << std::endl;
             _manager->badCamera( _cameraId );
@@ -302,25 +306,14 @@ void CameraGstreamer::alignToFps()
             _noSignal = false;
             _pipelineFailed = false;
         }
-        if( !_noSignal ){
-            int usingBuffer = _readyToUseBuffer;
-            if ( usingBuffer >= 0 ){
-                   _manager->frameGrabbed( _cameraId,
-                        static_cast<const uint8_t *>(&_frameBufferPool[usingBuffer].buffer[0]),
-                        _frameBufferPool[usingBuffer].bufferSize,
-                        _frameBufferPool[usingBuffer].timestamp,
-                        _frameBufferPool[usingBuffer].frameIndex,
-                        _trigger );
-             }
-        }
-        else if ( !_pipelineFailed and pipelineFailure() ) {
-            std::cout << "[camera "<<_cameraId<<"]  Pipline state changed to FAILURE." <<std::endl;
-            restartPipeline();
-            _pipelineFailed = true;
+        if ( ( _noSignal ) && ( !_pipelineFailed and pipelineFailure() ) ){
+             std::cout << "[camera "<<_cameraId<<"]  Pipline state changed to FAILURE." <<std::endl;
+             restartPipeline();
+             _pipelineFailed = true;
         }
         usleep(timeBetweenFramesInUS);
     }
-    std::cout << "[camera "<<_cameraId<<"] alignToFps thread finished running." << std::endl;
+    std::cout << "[camera "<<_cameraId<<"] checkPipelineState thread finished running." << std::endl;
 }
 
 GstStateChangeReturn CameraGstreamer::getPipelineStateChangeReturn() const {
