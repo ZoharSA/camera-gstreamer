@@ -361,7 +361,7 @@ bool CameraGstreamer::pipelineFailure() const {
 unsigned CameraGstreamer::getBufferSize( DUFrameFormat format, unsigned size )
 {
     assert( format == DUFrameFormat::RGBA or format == DUFrameFormat::YUV420 or format == DUFrameFormat::NV12
-        or format == DUFrameFormat::YUV422 or format == DUFrameFormat::Greyscale8 or format == DUFrameFormat::RGB );
+            or format == DUFrameFormat::YUV422 or format == DUFrameFormat::Greyscale8 or format == DUFrameFormat::RGB or format == DUFrameFormat::UYVY422 );
     switch( format ) {
         case DUFrameFormat::NV12:
         case DUFrameFormat::YUV420:
@@ -371,6 +371,7 @@ unsigned CameraGstreamer::getBufferSize( DUFrameFormat format, unsigned size )
         case DUFrameFormat::Greyscale8:
             return size;
         case DUFrameFormat::YUV422:
+        case DUFrameFormat::UYVY422:
             return size * 2;
         case DUFrameFormat::RGB:
             return size * 3;
