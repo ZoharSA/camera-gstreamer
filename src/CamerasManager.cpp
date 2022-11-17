@@ -46,6 +46,9 @@ void CamerasManager::frameGrabbed( CameraId id,
         .frameIndex = frameIndex,
         .ancillaryData = 0,
         .trigger = trigger,
+        .customerTimestamp = 0,
+        .customerField1 = 0,
+        .customerField2 = 0,
         .ctx = nullptr
     };
     _frameArrived( id, frame, _opaq );
