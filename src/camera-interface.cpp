@@ -43,6 +43,7 @@ void duCameraEnable( CameraId id ) {
 }
 
 void duCameraDisable( CameraId id ) {
+    camerasManager->stop(id);
 }
 
 uint64_t duLibraryVersion() {
