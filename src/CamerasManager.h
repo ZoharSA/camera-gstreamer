@@ -46,6 +46,7 @@ public:
     void goodCamera( CameraId id );
     void badCamera( CameraId id );
     void badFrame( CameraId id );
+    void badPipeline( CameraId id );
 };
 
 #endif // CAMERAS_MANAGER_H

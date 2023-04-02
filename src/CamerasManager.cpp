@@ -78,3 +78,8 @@ void CamerasManager::badFrame( CameraId id )
 {
     _cameraStateChanged( id, 20000, _opaq );
 }
+
+void CamerasManager::badPipeline( CameraId id )
+{
+    _cameraStateChanged( id, 10001, _opaq );
+}
