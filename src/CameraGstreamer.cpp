@@ -142,13 +142,20 @@ void CameraGstreamer::playGetVideoPackets() {
         createPipeline();
         addBusWatch();
         GstElement *appsink = gst_bin_get_by_name( GST_BIN(_currentPipelineElement), "appsink" );
-        g_signal_connect( appsink, "new_sample", G_CALLBACK(CameraGstreamer::onNewSample), this );
+        if ( appsink ) {
+            g_signal_connect( appsink, "new_sample", G_CALLBACK(CameraGstreamer::onNewSample), this );
+            if ( _loop ) {
+                g_signal_connect( appsink, "eos", G_CALLBACK(onEos), this );
+            }
+        } else {
+            std::cout << "[ERROR] [camera " << _cameraId << "] Failed to find 'appsink' in pipeline." << std::endl;
+            _manager->badPipeline(_cameraId);
+        }
         GstElement *startTimestamp = gst_bin_get_by_name(GST_BIN(_currentPipelineElement), "start_timestamp");
-        GstPad *startTimestamp_srcpad = gst_element_get_static_pad(startTimestamp, "src");
-        gst_pad_add_probe(startTimestamp_srcpad, GST_PAD_PROBE_TYPE_BUFFER, startTimestamp_srcpad_probe, this, NULL);
-
-        if( _loop ) {
-            g_signal_connect( appsink, "eos", G_CALLBACK(onEos), this );
+        if ( startTimestamp ) {
+            std::cout << "[camera " << _cameraId << "] Found start_timestamp in pipeline." << std::endl;
+            GstPad *startTimestamp_srcpad = gst_element_get_static_pad(startTimestamp, "src");
+            gst_pad_add_probe(startTimestamp_srcpad, GST_PAD_PROBE_TYPE_BUFFER, startTimestamp_srcpad_probe, this, NULL);
         }
         startPipeline();
     }
