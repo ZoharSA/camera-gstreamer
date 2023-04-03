@@ -175,7 +175,7 @@ void CameraGstreamer::startPipeline() {
 
 void CameraGstreamer::stopPipeline() {
     if ( _isRunning && _currentPipelineElement != NULL ) {
-        std::cout << "Stop pipeline, camera id: " << _cameraId << std::endl;
+        std::cout << "Stop pipeline, camera id: " << _cameraId << " startTimestampQueue size: " << _startTimestampQueue.size() << std::endl;
         gst_element_set_state( _currentPipelineElement, GST_STATE_NULL );
         gst_object_unref(_currentPipelineElement);
         removeBusWatch();
