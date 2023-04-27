@@ -47,6 +47,7 @@ public:
     bool getIsTrigger() const { return _trigger; }
     void setTrigger(bool trigger){ _trigger = trigger; }
     void getStartTimestamp();
+    bool isActive();
 private:
     static constexpr microseconds NO_SIGNAL_TIMEOUT_IN_US = 300'000;
     static constexpr microseconds RESTART_PIPELINE_TIMEOUT_IN_US = 2'000'000;

@@ -42,7 +42,7 @@ CameraGstreamer::CameraGstreamer( CameraId id,
     _manager( manager ),
     _readyToUseBuffer ( -1 ),
     _framesPerSecond( framesPerSecond ),
-    _noSignal( false ),
+    _noSignal( true ),
     _gstreamPipeline( description.id ),
     _isRunning( false ),
     _pipelineFailed( false )
@@ -170,6 +170,7 @@ void CameraGstreamer::startPipeline() {
         std::cout << "Start pipeline,  camera id: " << _cameraId << std::endl;
         gst_element_set_state( _currentPipelineElement, GST_STATE_PLAYING );
         _isRunning = true;
+        _noSignal = false;
     }
 }
 
@@ -276,6 +277,11 @@ void CameraGstreamer::getStartTimestamp() {
     _startTimestampQueue.push(startTimestamp);
 }
 
+bool CameraGstreamer::isActive() {
+    std::cout << "isActive. cameraId: "<<_cameraId <<" _isRunning: " << _isRunning << " , _noSignal: " << _noSignal << std::endl;
+    return _isRunning & !_noSignal;
+}
+
 GstFlowReturn CameraGstreamer::onNewSample( GstElement *element, gpointer user_data ) {
     CameraGstreamer *self = (CameraGstreamer *)user_data;
     GstAppSink *appsink = (GstAppSink *)element;
@@ -330,8 +336,8 @@ void CameraGstreamer::checkPipelineState()
         }
         if( !_noSignal && curr_duration >= NO_SIGNAL_TIMEOUT_IN_US ){
             std::cout << "[camera "<<_cameraId<<"] No frame captured in last "<<curr_duration<<"us (no-signal timeout is "<<NO_SIGNAL_TIMEOUT_IN_US<<"us)." << std::endl;
-            _manager->badCamera( _cameraId );
             _noSignal = true;
+            _manager->badCamera( _cameraId );
         }
         else if ( shouldRestartPipelineFromNoSignal() ) {
             restartPipeline();
@@ -339,15 +345,15 @@ void CameraGstreamer::checkPipelineState()
         }
         else if ( _noSignal && curr_duration < NO_SIGNAL_TIMEOUT_IN_US ){
             std::cout << "[camera "<<_cameraId<<"] Frame successfully captured - camera recovered from no-signal." << std::endl;
-            _manager->goodCamera( _cameraId );
             _noSignal = false;
+            _manager->goodCamera( _cameraId );
             _pipelineFailed = false;
         }
-        if ( ( _noSignal ) && ( !_pipelineFailed and pipelineFailure() ) ){
-             std::cout << "[camera "<<_cameraId<<"]  Pipline state changed to FAILURE." <<std::endl;
-             restartPipeline();
-             _pipelineFailed = true;
-        }
+        // if ( ( _noSignal ) && ( !_pipelineFailed and pipelineFailure() ) ){
+        //      std::cout << "[camera "<<_cameraId<<"]  Pipline state changed to FAILURE." <<std::endl;
+        //      restartPipeline();
+        //      _pipelineFailed = true;
+        // }
         usleep(timeBetweenFramesInUS);
     }
     std::cout << "[camera "<<_cameraId<<"] checkPipelineState thread finished running." << std::endl;

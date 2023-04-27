@@ -14,6 +14,8 @@ class CamerasManager {
     void *_opaq = nullptr;
     std::vector<CameraGstreamer*> _cameras;
     unsigned _framePerSecond;
+    unsigned _numCameras;
+    bool _triggerCamera;
 
 public:
     CamerasManager(
@@ -24,7 +26,8 @@ public:
         _frameArrived(frameArrived),
         _cameraStateChanged(cameraStateChanged),
         _opaq(opaq),
-        _framePerSecond(framesPerSecond)
+        _framePerSecond(framesPerSecond),
+        _triggerCamera(false)
     {}
 
     ~CamerasManager()
@@ -47,6 +50,7 @@ public:
     void badCamera( CameraId id );
     void badFrame( CameraId id );
     void badPipeline( CameraId id );
+    void updateTiggerCamera();
 };
 
 #endif // CAMERAS_MANAGER_H
