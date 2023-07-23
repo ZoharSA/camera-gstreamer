@@ -18,6 +18,7 @@
 #include <unordered_map>
 #include <atomic>
 #include <queue>
+#include <memory>
 
 constexpr const unsigned RING = 3;
 
@@ -92,6 +93,7 @@ private:
     bool pipelineFailure() const;
     void addBusWatch();
     void removeBusWatch();
+    void addGstCallback(const std::string& name,  GstPadProbeCallback probe = nullptr);
     static const std::unordered_map< std::string, void (CameraGstreamer::*)( const char *key, const char *value ) > optionHandlers;
 
 
@@ -117,4 +119,9 @@ private:
     bool                    _pipelineFailed;
     guint                   _busWatchId             = INVALID_BUS_WATCH_ID;
     unsigned long long      _startTimestampFrameIndex = 0;
+
+    int                     _appsinkTimePointIndex = -1;
+    class PipelineProfiler;
+    std::unique_ptr<PipelineProfiler> _pipelineProfiler;
+
 };
