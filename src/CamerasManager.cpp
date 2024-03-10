@@ -1,9 +1,12 @@
 #include <CamerasManager.h>
+#include <camera-interface.h>
+#include <UdpServerSocket.h>
 
 #include <iostream>
 #include <string>
 #include <assert.h>
 #include <string.h>
+#include <functional>
 
 void CamerasManager::addCameras(const DUCameraDescriptor *descriptors, size_t numCameras) {
 
@@ -24,10 +27,14 @@ void CamerasManager::addCameras(const DUCameraDescriptor *descriptors, size_t nu
             }
             else if ( _cameras[id]->getIsTrigger() ) {
                 foundTriggerCamera = true;
+                _customerDataPort = _cameras[id]->getCustomerDataPort();
+                _socket.bind(_customerDataPort);
             }
         }
         if ( !foundTriggerCamera ) {
             _cameras[ DEFAULT_TRIGGER_CAMERA ]->setTrigger( true );
+            _customerDataPort = _cameras[DEFAULT_TRIGGER_CAMERA]->getCustomerDataPort();
+            _socket.bind(_customerDataPort);
         }
     }
 }
@@ -46,7 +53,7 @@ void CamerasManager::frameGrabbed( CameraId id,
         .frameIndex = frameIndex,
         .ancillaryData = 0,
         .trigger = trigger,
-        .customerData = {},
+        .customerData = CamerasManager::lastReceivedCustomerData(),
         .ctx = nullptr
     };
     _frameArrived( id, frame, _opaq );
@@ -82,4 +89,49 @@ void CamerasManager::badFrame( CameraId id )
 void CamerasManager::badPipeline( CameraId id )
 {
     _cameraStateChanged( id, 10001, _opaq );
+}
+
+CustomerDataInterface CamerasManager::lastReceivedCustomerData()
+{
+    return _customerDataInterface;
+}
+
+void CamerasManager::initCustomerDataUdpReceiver()
+{
+    _customerDataReceiveLoopThread = std::thread(
+        [&]() {
+            while(!_stopCustomerDataUdpReceiver) {
+                OS::UdpServerSocket::PointerLength buffer{&_customerDataInterface, sizeof(_customerDataInterface)};
+                _socket.receive(buffer);
+            }
+        }
+    );
+    return;
+}
+
+void CamerasManager::unblockCustomerDataUdpReceiverThread()
+{
+    int fd( socket(AF_INET, SOCK_DGRAM, 0) );
+    if (fd < 0) {
+        perror("socket creation failed");
+        exit(EXIT_FAILURE);
+    }
+
+    struct sockaddr_in address;
+    memset(&address, 0, sizeof(address));
+    address.sin_family = AF_INET;
+    address.sin_port = htons(_customerDataPort);
+    address.sin_addr.s_addr = INADDR_ANY;
+
+    const char *emptyMessage = "";
+    sendto(
+        fd,
+        (const char *)emptyMessage,
+        strlen(emptyMessage),
+        MSG_CONFIRM,
+        (const struct sockaddr *) &address,
+        sizeof(address)
+    );
+    close(fd);
+    return;
 }

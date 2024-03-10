@@ -45,6 +45,7 @@ public:
     void stopCheckPipelineStateThread();
     void playGetVideoPackets();
     bool getIsTrigger() const { return _trigger; }
+    unsigned short getCustomerDataPort() const { return _customerDataPort; }
     void setTrigger(bool trigger){ _trigger = trigger; }
     void getStartTimestamp();
 private:
@@ -81,6 +82,7 @@ private:
     void setRestartPipeline() { _restartPipeline = true; }
     void optionLoop( const char *key, const char *value );
     void optionTrigger( const char *key, const char *value );
+    void optionCustomerDataPort( const char *key, const char *value );
     static bool parseBoolValue( const char *key, const char *value );
     void allocateFrameBufferPool(unsigned bufferSize);
     void releaseBufferPool();
@@ -111,6 +113,7 @@ private:
     bool                    _loop                   = false;
     std::atomic<bool>       _isRunning;
     bool                    _trigger                = false;
+    unsigned short          _customerDataPort       = 0;
     uint32_t                _appSinkFrameIndex      = 0;
     time_point              _lastPipelineRestartTimestamp;
     std::queue<StartTimestamp>  _startTimestampQueue;

@@ -3,6 +3,7 @@
 
 #include <camera-interface.h>
 
+#include "UdpServerSocket.h"
 #include "CameraGstreamer.h"
 
 #include <vector>
@@ -24,11 +25,20 @@ public:
         _frameArrived(frameArrived),
         _cameraStateChanged(cameraStateChanged),
         _opaq(opaq),
-        _framePerSecond(framesPerSecond)
-    {}
+        _framePerSecond(framesPerSecond),
+        _socket(),
+        _customerDataInterface({0, 0, 0}),
+        _customerDataReceiveLoopThread()
+    {
+        initCustomerDataUdpReceiver();
+    }
 
     ~CamerasManager()
-    {}
+    {
+        _stopCustomerDataUdpReceiver = true;
+        unblockCustomerDataUdpReceiverThread();
+        _customerDataReceiveLoopThread.join();
+    }
 
     void frameGrabbed( CameraId id,
                     const uint8_t* buffer,
@@ -47,6 +57,18 @@ public:
     void badCamera( CameraId id );
     void badFrame( CameraId id );
     void badPipeline( CameraId id );
+
+private:
+    OS::UdpServerSocket _socket;
+    CustomerDataInterface _customerDataInterface;
+    std::thread _customerDataReceiveLoopThread;
+    bool _stopCustomerDataUdpReceiver = false;
+    unsigned short _customerDataPort = 0;
+
+    void initCustomerDataUdpReceiver();
+    CustomerDataInterface lastReceivedCustomerData();
+    void customerDataReceiveLoop();
+    void unblockCustomerDataUdpReceiverThread();
 };
 
 #endif // CAMERAS_MANAGER_H

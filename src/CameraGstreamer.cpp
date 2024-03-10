@@ -6,7 +6,8 @@
 const std::unordered_map< std::string, void (CameraGstreamer::*)( const char *key, const char *value ) > CameraGstreamer::optionHandlers
 {
     {"loop", &CameraGstreamer::optionLoop},
-    {"trigger", &CameraGstreamer::optionTrigger}
+    {"trigger", &CameraGstreamer::optionTrigger},
+    {"customerDataPort", &CameraGstreamer::optionCustomerDataPort}
 };
 
 gboolean CameraGstreamer::busCallback( GstBus *bus, GstMessage *msg, gpointer unusedUserData) {
@@ -409,4 +410,9 @@ bool CameraGstreamer::parseBoolValue( const char *key, const char *value ) {
     errorMsg << "GStreamer Camera - Boolean value for custom parameter \""<<key<<"\" must be either \"true\" or \"false\". Not \""<<
             value<<"\"";
     throw std::runtime_error( errorMsg.str() );
+}
+
+void CameraGstreamer::optionCustomerDataPort( const char *key, const char *rawValue ) {
+    const std::string value(rawValue);
+    _customerDataPort = (unsigned short) strtoul(rawValue, NULL, 0);
 }
