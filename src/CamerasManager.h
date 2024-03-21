@@ -35,9 +35,11 @@ public:
 
     ~CamerasManager()
     {
-        _stopCustomerDataUdpReceiver = true;
-        unblockCustomerDataUdpReceiverThread();
-        _customerDataReceiveLoopThread.join();
+        if (_customerDataPort != 0) {
+            _stopCustomerDataUdpReceiver = true;
+            unblockCustomerDataUdpReceiverThread();
+            _customerDataReceiveLoopThread.join();
+        }
     }
 
     void frameGrabbed( CameraId id,
