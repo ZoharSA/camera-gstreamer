@@ -43,6 +43,7 @@ void duCameraEnable( CameraId id ) {
 }
 
 void duCameraDisable( CameraId id ) {
+    camerasManager->stop(id);
     // MIYAD-6205: Currently we don't have a mechanism to switch trigger cameras, so we should never stop the trigger cam
     std::cout << "[camera " << id << "] duCameraDisable called for camera. Doing nothing." << std::endl;
 }

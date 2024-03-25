@@ -35,7 +35,14 @@ void CamerasManager::addCameras(const DUCameraDescriptor *descriptors, size_t nu
             _customerDataPort = _cameras[DEFAULT_TRIGGER_CAMERA]->getCustomerDataPort();
         }
         if (_customerDataPort != 0) {
-            _socket.bind(_customerDataPort);
+            try {
+                _socket.bind(_customerDataPort);
+            }
+            catch( std::exception &e ) {
+                std::cerr<<"Failed to bind customer data port " << e.what() << " Running without receiving customer data.";
+                _customerDataPort = 0;
+                _socket.close();
+            }
         }
     }
 }
@@ -68,6 +75,9 @@ void CamerasManager::start( const CameraId cameraId )
 
 void CamerasManager::stop( const CameraId cameraId )
 {
+    if (_cameras[cameraId]->getIsTrigger()) {
+        stopCustomerDataReceiver();
+    }
     assert(_cameras[cameraId]);
     _cameras[cameraId]->stop();
 }
@@ -110,6 +120,18 @@ void CamerasManager::initCustomerDataUdpReceiver()
         );
     }
     return;
+}
+
+void CamerasManager::stopCustomerDataReceiver()
+{
+    if (_customerDataPort != 0) {
+        _stopCustomerDataUdpReceiver = true;
+        unblockCustomerDataUdpReceiverThread();
+        _socket.close();
+        if ( _customerDataReceiveLoopThread.joinable() ) {
+            _customerDataReceiveLoopThread.join();
+        }
+    }
 }
 
 void CamerasManager::unblockCustomerDataUdpReceiverThread()

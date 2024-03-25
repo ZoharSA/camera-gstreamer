@@ -35,11 +35,7 @@ public:
 
     ~CamerasManager()
     {
-        if (_customerDataPort != 0) {
-            _stopCustomerDataUdpReceiver = true;
-            unblockCustomerDataUdpReceiverThread();
-            _customerDataReceiveLoopThread.join();
-        }
+        stopCustomerDataReceiver();
     }
 
     void frameGrabbed( CameraId id,
@@ -70,6 +66,7 @@ private:
     void initCustomerDataUdpReceiver();
     CustomerDataInterface lastReceivedCustomerData();
     void customerDataReceiveLoop();
+    void stopCustomerDataReceiver();
     void unblockCustomerDataUdpReceiverThread();
 };
 
