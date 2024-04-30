@@ -35,14 +35,7 @@ void CamerasManager::addCameras(const DUCameraDescriptor *descriptors, size_t nu
             _customerDataPort = _cameras[DEFAULT_TRIGGER_CAMERA]->getCustomerDataPort();
         }
         if (_customerDataPort != 0) {
-            try {
-                _socket.bind(_customerDataPort);
-            }
-            catch( std::exception &e ) {
-                std::cerr<<"Failed to bind customer data port " << e.what() << " Running without receiving customer data.";
-                _customerDataPort = 0;
-                _socket.close();
-            }
+            initCustomerDataUdpReceiver();
         }
     }
 }
@@ -109,16 +102,23 @@ CustomerDataInterface CamerasManager::lastReceivedCustomerData()
 
 void CamerasManager::initCustomerDataUdpReceiver()
 {
-    if (_customerDataPort != 0) {
-        _customerDataReceiveLoopThread = std::thread(
-            [&]() {
-                while(!_stopCustomerDataUdpReceiver) {
-                    OS::UdpServerSocket::PointerLength buffer{&_customerDataInterface, sizeof(_customerDataInterface)};
-                    _socket.receive(buffer);
-                }
-            }
-        );
+    try {
+        _socket.bind(_customerDataPort);
     }
+    catch( std::exception &e ) {
+        std::cerr<<"Failed to bind customer data port " << e.what() << " Running without receiving customer data.";
+        _customerDataPort = 0;
+        _socket.close();
+    }
+    std::cout << "Starting customer data receive loop thread on port: " << _customerDataPort;
+    _customerDataReceiveLoopThread = std::thread(
+        [&]() {
+            while(!_stopCustomerDataUdpReceiver) {
+                OS::UdpServerSocket::PointerLength buffer{&_customerDataInterface, sizeof(_customerDataInterface)};
+                _socket.receive(buffer);
+            }
+        }
+    );
     return;
 }
 

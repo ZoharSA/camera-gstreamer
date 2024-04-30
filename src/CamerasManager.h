@@ -29,9 +29,7 @@ public:
         _socket(),
         _customerDataInterface({0, 0, 0}),
         _customerDataReceiveLoopThread()
-    {
-        initCustomerDataUdpReceiver();
-    }
+    {}
 
     ~CamerasManager()
     {
