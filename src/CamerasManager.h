@@ -5,6 +5,7 @@
 
 #include "UdpServerSocket.h"
 #include "CameraGstreamer.h"
+#include "TriggerLogic.h"
 
 #include <vector>
 
@@ -14,6 +15,7 @@ class CamerasManager {
     DUCameraStateChangedCallback _cameraStateChanged = nullptr;
     void *_opaq = nullptr;
     std::vector<CameraGstreamer*> _cameras;
+    std::unique_ptr<TriggerLogic> _triggerLogic = nullptr;
     unsigned _framePerSecond;
 
 public:

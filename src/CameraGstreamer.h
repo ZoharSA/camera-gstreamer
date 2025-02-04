@@ -18,6 +18,7 @@
 #include <unordered_map>
 #include <atomic>
 #include <queue>
+#include <mutex>
 
 constexpr const unsigned RING = 3;
 
@@ -33,6 +34,7 @@ public:
           CameraId id,
           const DUCameraDescriptor description,
           CamerasManager *manager,
+          std::shared_ptr<std::mutex> triggerCameraStateMutex,
           unsigned framesPerSecond );
     ~CameraGstreamer();
 
@@ -45,6 +47,7 @@ public:
     void stopCheckPipelineStateThread();
     void playGetVideoPackets();
     bool getIsTrigger() const { return _trigger; }
+    bool getIsRunning() const { return _isRunning; }
     unsigned short getCustomerDataPort() const { return _customerDataPort; }
     void setTrigger(bool trigger){ _trigger = trigger; }
     void getStartTimestamp();
@@ -120,4 +123,5 @@ private:
     bool                    _pipelineFailed;
     guint                   _busWatchId             = INVALID_BUS_WATCH_ID;
     unsigned long long      _startTimestampFrameIndex = 0;
+    std::shared_ptr<std::mutex> _triggerCameraStateMutex;
 };
