@@ -30,7 +30,7 @@ private:
 
     bool allCamerasStopped();
     void changeTrigger(CameraId id, bool trigger);
-    CameraId findTopPriorityActiveCamera();
+    CameraId findTopPriorityActiveCamera(CameraId excludeId);
 
     TriggerLogic(const TriggerLogic & rhs) = delete;
     TriggerLogic & operator=(const TriggerLogic & rhs) = delete;

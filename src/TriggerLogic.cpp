@@ -35,7 +35,7 @@ void TriggerLogic::adjustTrigger(CameraId id, bool active) {
         if (id == _currentTrigger) {
             return;
         }
-        if (id == findTopPriorityActiveCamera()) {
+        if (id == findTopPriorityActiveCamera(_invalidCameraId)) {
             changeTrigger(id, true);
         }
     }
@@ -55,9 +55,9 @@ void TriggerLogic::changeTrigger(CameraId id, bool trigger) {
         _currentTrigger = id;
     }
     else {
-        CameraId _currentTrigger = findTopPriorityActiveCamera();
+        CameraId _currentTrigger = findTopPriorityActiveCamera(id);
         if (!allCamerasStopped()) {
-            std::cout << "Changing trigger camera from id: " << id << " to id: " << _currentTrigger << std::endl;
+            std::cout << "Trigger camera with id: " << id << " stopped. Changing trigger camera to camera with id: " << _currentTrigger << std::endl;
             (*_cameras)[id]->setTrigger(false);
             (*_cameras)[_currentTrigger]->setTrigger(true);
         }
@@ -65,18 +65,21 @@ void TriggerLogic::changeTrigger(CameraId id, bool trigger) {
      _triggerCameraStateMutex->unlock();
 }
 
-CameraId TriggerLogic::findTopPriorityActiveCamera() {
+CameraId TriggerLogic::findTopPriorityActiveCamera(CameraId excludeId) {
     if ((*_cameras)[_definedTriggerId]->getIsRunning()) {
         return _definedTriggerId;
     }
     CameraId id = 0;
     for(auto camera: *_cameras) {
-        if (camera->getIsRunning()) {
+        if (id != excludeId && camera->getIsRunning()) {
             return id;
         }
         ++id;
     }
-    assert(id==_invalidCameraId);
+    if (id!=_invalidCameraId) {
+        std::cerr << "Finished iterating cameras but did not reach the last id. id="<<id<<" last id="<<_invalidCameraId;
+        assert( ("Finished iterating cameras but did not reach the last id.", false) );
+    }
     return id;
 }
 
