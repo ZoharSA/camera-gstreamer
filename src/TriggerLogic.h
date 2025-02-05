@@ -22,15 +22,15 @@ public:
     void adjustTrigger(CameraId id, bool active);
    
 private:
-    CameraId _currentTrigger;
-    CameraId _definedTriggerId;
-    CameraId _invalidCameraId;
     std::shared_ptr< std::vector<CameraGstreamer*> > _cameras;
     std::shared_ptr<std::mutex>  _triggerCameraStateMutex;
+    CameraId _currentTrigger;
+    CameraId _definedTriggerId;
+    static constexpr CameraId INVALID_CAMERA_ID = UINT16_MAX;
 
-    bool allCamerasStopped();
     void changeTrigger(CameraId id, bool trigger);
-    CameraId findTopPriorityActiveCamera(CameraId excludeId);
+    CameraId findTopPriorityActiveCamera(CameraId excludeId=INVALID_CAMERA_ID) const;
+    bool allCamerasStopped() const;
 
     TriggerLogic(const TriggerLogic & rhs) = delete;
     TriggerLogic & operator=(const TriggerLogic & rhs) = delete;

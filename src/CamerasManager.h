@@ -15,7 +15,6 @@ class CamerasManager {
     DUCameraStateChangedCallback _cameraStateChanged = nullptr;
     void *_opaq = nullptr;
     std::vector<CameraGstreamer*> _cameras;
-    std::unique_ptr<TriggerLogic> _triggerLogic = nullptr;
     unsigned _framePerSecond;
 
 public:
@@ -62,6 +61,7 @@ private:
     std::thread _customerDataReceiveLoopThread;
     bool _stopCustomerDataUdpReceiver = false;
     unsigned short _customerDataPort = 0;
+    std::unique_ptr<TriggerLogic> _triggerLogic;
 
     void initCustomerDataUdpReceiver();
     CustomerDataInterface lastReceivedCustomerData();
