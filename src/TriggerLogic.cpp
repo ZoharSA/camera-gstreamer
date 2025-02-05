@@ -47,7 +47,7 @@ void TriggerLogic::adjustTrigger(CameraId id, bool active) {
 }
 
 void TriggerLogic::changeTrigger(CameraId id, bool trigger) {
-     _triggerCameraStateMutex->lock();
+    std::lock_guard<std::mutex> lock(*_triggerCameraStateMutex);
     if (trigger) {
         std::cout << "Changing trigger camera from id: " << _currentTrigger << " to id: " << id << std::endl;
         (*_cameras)[_currentTrigger]->setTrigger(false);
@@ -62,7 +62,6 @@ void TriggerLogic::changeTrigger(CameraId id, bool trigger) {
             (*_cameras)[_currentTrigger]->setTrigger(true);
         }
     }
-     _triggerCameraStateMutex->unlock();
 }
 
 CameraId TriggerLogic::findTopPriorityActiveCamera(CameraId excludeId) {

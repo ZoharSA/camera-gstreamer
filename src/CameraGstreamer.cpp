@@ -260,15 +260,17 @@ void CameraGstreamer::onVideoFrame( GstVideoFrame *frame ) {
         std::cout << "[camera "<<_cameraId<<"] no start_timestamp name was set." << std::endl;
         _noStartTimestamp = true;
     }
-    _triggerCameraStateMutex->lock();
-    _manager->frameGrabbed( _cameraId,
-    _frameBufferPool[currBufferIndex],
-    GST_VIDEO_FRAME_SIZE(frame),
-    startTimestamp.timestamp,
-    _appSinkFrameIndex,
-    _trigger );
-    _triggerCameraStateMutex->unlock();
-
+    {
+        std::lock_guard<std::mutex> lock(*_triggerCameraStateMutex);
+        _manager->frameGrabbed(
+            _cameraId,
+            _frameBufferPool[currBufferIndex],
+            GST_VIDEO_FRAME_SIZE(frame),
+            startTimestamp.timestamp,
+            _appSinkFrameIndex,
+            _trigger
+        );
+    }
     _appSinkFrameIndex++;
     _readyToUseBuffer = currBufferIndex;
 }
