@@ -75,7 +75,7 @@ void CamerasManager::start( const CameraId cameraId )
 void CamerasManager::stop( const CameraId cameraId )
 {
     if (_cameras[cameraId]->getIsTrigger()) {
-        stopCustomerDataReceiver();
+//        stopCustomerDataReceiver();
         _triggerLogic->adjustTrigger(cameraId, false);
     }
     assert(_cameras[cameraId]);

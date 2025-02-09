@@ -49,7 +49,7 @@ public:
     bool getIsTrigger() const { return _trigger; }
     bool getIsRunning() const { return _isRunning; }
     unsigned short getCustomerDataPort() const { return _customerDataPort; }
-    void setTrigger(bool trigger){ _trigger = trigger; }
+    void setTrigger(bool trigger);
     void getStartTimestamp();
 private:
     static constexpr microseconds NO_SIGNAL_TIMEOUT_IN_US = 300'000;
@@ -124,4 +124,6 @@ private:
     guint                   _busWatchId             = INVALID_BUS_WATCH_ID;
     unsigned long long      _startTimestampFrameIndex = 0;
     std::shared_ptr<std::mutex> _triggerCameraStateMutex;
+    std::mutex              _onStopmutex;
+    std::atomic_bool        _enforceStop        { false };
 };
