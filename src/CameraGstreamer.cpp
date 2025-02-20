@@ -173,15 +173,17 @@ void CameraGstreamer::playGetVideoPackets() {
 
 
 void CameraGstreamer::startPipeline() {
+    std::lock_guard<std::mutex> l(_onStopMutex);
     if ( !_isRunning && _currentPipelineElement != NULL ) {
         std::cout << "Start pipeline,  camera id: " << _cameraId << std::endl;
+        _appSinkFrameIndex = _startTimestampFrameIndex;
         gst_element_set_state( _currentPipelineElement, GST_STATE_PLAYING );
         _isRunning = true;
     }
 }
 
 void CameraGstreamer::stopPipeline() {
-    std::lock_guard<std::mutex> l(_onStopmutex);
+    std::lock_guard<std::mutex> l(_onStopMutex);
     if ( _isRunning && _currentPipelineElement != NULL ) {
         std::cout << std::this_thread::get_id()
                 << ": Stop pipeline, camera id: " << _cameraId << " startTimestampQueue size: "
@@ -191,6 +193,9 @@ void CameraGstreamer::stopPipeline() {
         removeBusWatch();
         _currentPipelineElement = NULL;
         _isRunning = false;
+        while (_startTimestampQueue.size() > 0) {
+            _startTimestampQueue.pop();
+        }
         std::cout << std::this_thread::get_id()
                   << ": Stopped pipeline, camera id: " << _cameraId << std::endl;
     } else {
@@ -247,6 +252,11 @@ void CameraGstreamer::removeBusWatch() {
 }
 
 void CameraGstreamer::onVideoFrame( GstVideoFrame *frame ) {
+    std::lock_guard<std::mutex> l(_onStopMutex);
+    if (!_isRunning) {
+        std::cout << "[camera " << _cameraId<< "] onVideoFrame called when camera is not running." << std::endl;
+        return;
+    }
     int currBufferIndex = (_readyToUseBuffer + 1) % RING;
 
     _lastCapturedTimestamp = std::chrono::steady_clock::now();
@@ -265,12 +275,13 @@ void CameraGstreamer::onVideoFrame( GstVideoFrame *frame ) {
     if (_startTimestampQueue.size() != 0) {
         startTimestamp = _startTimestampQueue.front();
         if (startTimestamp.frameIndex != _appSinkFrameIndex) {
-            std::cout << "Lost frames in pipline. start timestamp frame index: " << startTimestamp.frameIndex <<" sink timestamp index: "  << _appSinkFrameIndex << std::endl;
+            std::cout << "Lost frames in pipline. start timestamp frame index: " << startTimestamp.frameIndex
+                      << " sink timestamp index: " << _appSinkFrameIndex << std::endl;
         }
         _startTimestampQueue.pop();
         _noStartTimestamp = false;
     } else if (_noStartTimestamp == false) {
-        std::cout << "[camera "<<_cameraId<<"] no start_timestamp name was set." << std::endl;
+        std::cout << "[camera " << _cameraId << "] no start_timestamp name was set." << std::endl;
         _noStartTimestamp = true;
     }
     {
@@ -290,8 +301,10 @@ void CameraGstreamer::onVideoFrame( GstVideoFrame *frame ) {
 
 void CameraGstreamer::setTrigger(bool trigger){
     _trigger = trigger;
+    std::cout << "[camera " << _cameraId << "] setTrigger: " << trigger
+              << "; queue size: " << _startTimestampQueue.size()
+              << std::endl;
 }
-
 
 void CameraGstreamer::getStartTimestamp() {
     StartTimestamp startTimestamp;

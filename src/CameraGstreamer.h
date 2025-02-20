@@ -124,6 +124,6 @@ private:
     guint                   _busWatchId             = INVALID_BUS_WATCH_ID;
     unsigned long long      _startTimestampFrameIndex = 0;
     std::shared_ptr<std::mutex> _triggerCameraStateMutex;
-    std::mutex              _onStopmutex;
+    std::mutex              _onStopMutex;
     std::atomic_bool        _enforceStop        { false };
 };
