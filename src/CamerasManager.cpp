@@ -10,9 +10,10 @@
 
 void CamerasManager::addCameras(const DUCameraDescriptor *descriptors, size_t numCameras) {
 
+    auto triggerCameraStateMutex = std::make_shared<std::mutex>();
     for( CameraId id=0; id<numCameras; ++id ) {
         try {
-            _cameras.push_back( new CameraGstreamer(id, descriptors[id], this, _framePerSecond) );
+            _cameras.push_back( new CameraGstreamer(id, descriptors[id], this, triggerCameraStateMutex, _framePerSecond) );
             _cameraStateChanged( id, 0, _opaq );
         } catch( ... ) {
             std::cerr<<"Failed to open camera "<<id<<"\n";
@@ -37,6 +38,10 @@ void CamerasManager::addCameras(const DUCameraDescriptor *descriptors, size_t nu
         if (_customerDataPort != 0) {
             initCustomerDataUdpReceiver();
         }
+    _triggerLogic = std::make_unique<TriggerLogic>(
+        std::make_shared< std::vector<CameraGstreamer*> >(_cameras),
+        triggerCameraStateMutex
+    );
     }
 }
 
@@ -64,12 +69,14 @@ void CamerasManager::start( const CameraId cameraId )
 {
     assert(_cameras[cameraId]);
     _cameras[cameraId]->start();
+    _triggerLogic->adjustTrigger(cameraId, true);
 }
 
 void CamerasManager::stop( const CameraId cameraId )
 {
     if (_cameras[cameraId]->getIsTrigger()) {
-        stopCustomerDataReceiver();
+//        stopCustomerDataReceiver();
+        _triggerLogic->adjustTrigger(cameraId, false);
     }
     assert(_cameras[cameraId]);
     _cameras[cameraId]->stop();

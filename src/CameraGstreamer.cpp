@@ -1,5 +1,6 @@
 #include <CameraGstreamer.h>
 #include <CamerasManager.h>
+#include "Backtrace.h"
 #include <assert.h>
 #include <cstring>
 
@@ -37,10 +38,12 @@ gboolean CameraGstreamer::busCallback( GstBus *bus, GstMessage *msg, gpointer un
 CameraGstreamer::CameraGstreamer( CameraId id,
         const DUCameraDescriptor description,
         CamerasManager *manager,
+        std::shared_ptr<std::mutex> triggerCameraStateMutex,
         unsigned framesPerSecond ):
     _bufferSize( getBufferSize( description.format, description.width*description.height ) ),
     _cameraId( id ),
     _manager( manager ),
+    _triggerCameraStateMutex(triggerCameraStateMutex),
     _readyToUseBuffer ( -1 ),
     _framesPerSecond( framesPerSecond ),
     _noSignal( false ),
@@ -113,8 +116,11 @@ void CameraGstreamer::start() {
 }
 
 void CameraGstreamer::stop() {
+    //we need _enforceStop flag to
+    _enforceStop = true;
     stopPipeline();
     stopCheckPipelineStateThread();
+    _enforceStop = false;
 }
 
 void CameraGstreamer::stopCheckPipelineStateThread() {
@@ -167,21 +173,34 @@ void CameraGstreamer::playGetVideoPackets() {
 
 
 void CameraGstreamer::startPipeline() {
+    std::lock_guard<std::mutex> l(_onStopMutex);
     if ( !_isRunning && _currentPipelineElement != NULL ) {
         std::cout << "Start pipeline,  camera id: " << _cameraId << std::endl;
+        _appSinkFrameIndex = _startTimestampFrameIndex;
         gst_element_set_state( _currentPipelineElement, GST_STATE_PLAYING );
         _isRunning = true;
     }
 }
 
 void CameraGstreamer::stopPipeline() {
+    std::lock_guard<std::mutex> l(_onStopMutex);
     if ( _isRunning && _currentPipelineElement != NULL ) {
-        std::cout << "Stop pipeline, camera id: " << _cameraId << " startTimestampQueue size: " << _startTimestampQueue.size() << std::endl;
+        std::cout << std::this_thread::get_id()
+                << ": Stop pipeline, camera id: " << _cameraId << " startTimestampQueue size: "
+                << _startTimestampQueue.size() << std::endl;
         gst_element_set_state( _currentPipelineElement, GST_STATE_NULL );
         gst_object_unref(_currentPipelineElement);
         removeBusWatch();
         _currentPipelineElement = NULL;
         _isRunning = false;
+        while (_startTimestampQueue.size() > 0) {
+            _startTimestampQueue.pop();
+        }
+        std::cout << std::this_thread::get_id()
+                  << ": Stopped pipeline, camera id: " << _cameraId << std::endl;
+    } else {
+        std::cout << std::this_thread::get_id() << " Stop request when camera is not running"
+        << deb::Backtrace() << std::endl;
     }
 }
 
@@ -195,6 +214,7 @@ void CameraGstreamer::pausePipeline() {
 void CameraGstreamer::resumePipeline() {
     if ( _currentPipelineElement != NULL ) {
         if ( gst_element_set_state( _currentPipelineElement, GST_STATE_PLAYING ) != GST_STATE_CHANGE_FAILURE ) {
+            std::cout << "[camera "<<_cameraId<<"] resumePipeline" << std::endl;
             _isRunning = true;
         }
     }
@@ -232,6 +252,11 @@ void CameraGstreamer::removeBusWatch() {
 }
 
 void CameraGstreamer::onVideoFrame( GstVideoFrame *frame ) {
+    std::lock_guard<std::mutex> l(_onStopMutex);
+    if (!_isRunning) {
+        std::cout << "[camera " << _cameraId<< "] onVideoFrame called when camera is not running." << std::endl;
+        return;
+    }
     int currBufferIndex = (_readyToUseBuffer + 1) % RING;
 
     _lastCapturedTimestamp = std::chrono::steady_clock::now();
@@ -250,24 +275,35 @@ void CameraGstreamer::onVideoFrame( GstVideoFrame *frame ) {
     if (_startTimestampQueue.size() != 0) {
         startTimestamp = _startTimestampQueue.front();
         if (startTimestamp.frameIndex != _appSinkFrameIndex) {
-            std::cout << "Lost frames in pipline. start timestamp frame index: " << startTimestamp.frameIndex <<" sink timestamp index: "  << _appSinkFrameIndex << std::endl;
+            std::cout << "Lost frames in pipline. start timestamp frame index: " << startTimestamp.frameIndex
+                      << " sink timestamp index: " << _appSinkFrameIndex << std::endl;
         }
         _startTimestampQueue.pop();
         _noStartTimestamp = false;
     } else if (_noStartTimestamp == false) {
-        std::cout << "[camera "<<_cameraId<<"] no start_timestamp name was set." << std::endl;
+        std::cout << "[camera " << _cameraId << "] no start_timestamp name was set." << std::endl;
         _noStartTimestamp = true;
     }
-
-    _manager->frameGrabbed( _cameraId,
-    _frameBufferPool[currBufferIndex],
-    GST_VIDEO_FRAME_SIZE(frame),
-    startTimestamp.timestamp,
-    _appSinkFrameIndex,
-    _trigger );
-
+    {
+        std::lock_guard<std::mutex> lock(*_triggerCameraStateMutex);
+        _manager->frameGrabbed(
+            _cameraId,
+            _frameBufferPool[currBufferIndex],
+            GST_VIDEO_FRAME_SIZE(frame),
+            startTimestamp.timestamp,
+            _appSinkFrameIndex,
+            _trigger
+        );
+    }
     _appSinkFrameIndex++;
     _readyToUseBuffer = currBufferIndex;
+}
+
+void CameraGstreamer::setTrigger(bool trigger){
+    _trigger = trigger;
+    std::cout << "[camera " << _cameraId << "] setTrigger: " << trigger
+              << "; queue size: " << _startTimestampQueue.size()
+              << std::endl;
 }
 
 void CameraGstreamer::getStartTimestamp() {
@@ -303,7 +339,12 @@ GstFlowReturn CameraGstreamer::onNewSample( GstElement *element, gpointer user_d
 
 void CameraGstreamer::restartPipeline() {
     std::cout << "[camera "<<_cameraId<<"] Restarting pipeline." << std::endl;
+    std::cout << deb::Backtrace() << std::endl;
     stopPipeline();
+    if (_enforceStop) {
+        std::cout << "[camera "<<_cameraId<<"] We are in enforce stop state: not starting pipeline." << std::endl;
+        return;
+    }
     playGetVideoPackets();
     _lastPipelineRestartTimestamp = std::chrono::steady_clock::now();
     std::cout << "[camera "<<_cameraId<<"] Finished restarting pipeline." << std::endl;
@@ -335,6 +376,7 @@ void CameraGstreamer::checkPipelineState()
             _noSignal = true;
         }
         else if ( shouldRestartPipelineFromNoSignal() ) {
+            std::cout << "[camera "<<_cameraId<<"] shouldRestartPipelineFromNoSignal" << std::endl;
             restartPipeline();
             continue;
         }

@@ -5,6 +5,7 @@
 
 #include "UdpServerSocket.h"
 #include "CameraGstreamer.h"
+#include "TriggerLogic.h"
 
 #include <vector>
 
@@ -60,6 +61,7 @@ private:
     std::thread _customerDataReceiveLoopThread;
     bool _stopCustomerDataUdpReceiver = false;
     unsigned short _customerDataPort = 0;
+    std::unique_ptr<TriggerLogic> _triggerLogic;
 
     void initCustomerDataUdpReceiver();
     CustomerDataInterface lastReceivedCustomerData();
