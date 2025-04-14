@@ -19,6 +19,7 @@
 #include <atomic>
 #include <queue>
 #include <mutex>
+#include <memory>
 
 constexpr const unsigned RING = 3;
 
